@@ -47,10 +47,6 @@ To create a Spotify API key, follow these steps:
    - Make sure to securely note down your Client ID and Client Secret. (You can place them in `keys.env`)
    - You will use these keys in your application to authenticate requests to the Spotify API.
 
-5. **Start Using the Spotify API:**
-   - With your Client ID and Client Secret, you can start making requests to the Spotify API in your application.
-   - Follow Spotify's API guidelines and terms of service when using their API.
-
 By following these steps, you should be able to create a Spotify API key and integrate it into your application for accessing Spotify's services.
 
 ## Installation
