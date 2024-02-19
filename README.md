@@ -56,7 +56,7 @@ By following these steps, you should be able to create a Spotify API key and int
 3. Install dependencies by running the command (If you don't have the packages):
 
 ```bash
-npm install ytdl-core youtube-sr spotify-web-api-node dotenv readline chalk
+npm install ytdl-core youtube-sr spotify-web-api-node dotenv readline chalk node-fetch
 ```
 
 ## Usage
@@ -108,6 +108,7 @@ This script utilizes the following libraries:
 - `dotenv` for loading environment variables from a `.env` file.
 - `readline` for creating a command-line interface.
 - `chalk` for terminal styling.
+- `node-fetch` to enable HTTP requests in Node.js environments.
 
 ## License
 
