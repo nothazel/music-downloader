@@ -7,7 +7,7 @@ This is a simple command-line tool for downloading music from YouTube and Spotif
 Before using this script, ensure you have the following:
 
 - Node.js installed on your machine.
-- A set of API keys for Spotify. These keys should be stored in a file named `keys.env` in the root directory of the project.
+- A set of API keys for Spotify. These keys should be stored in a file named `keys.env` in the root directory of the project. (IF YOU WANT TO USE SPOTIFY COMMAND ITS OPTIONAL)
 
 ## FAQ
 
