@@ -59,8 +59,8 @@ By following these steps, you should be able to create a Spotify API key and int
 2. Navigate to the project directory in your terminal.
 3. Install dependencies by running the command (If you don't have the packages):
 
-```js
-npm install
+```bash
+npm install ytdl-core youtube-sr spotify-web-api-node dotenv readline chalk
 ```
 
 ## Usage
