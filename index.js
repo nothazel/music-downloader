@@ -90,16 +90,29 @@ async function handleSpotifyPlaylist(playlistUrl, folderPath) {
 
         console.log(color.yellow.inverse('Handling Spotify playlist:'), playlistId);
         await askForFuckingPermission();
-        const playlistTracks = await spotifyApi.getPlaylistTracks(playlistId);
-        const tracks = playlistTracks.body.items;
-        for (const result of tracks) {
-            const trackName = result.track.name;
-            const artistNames = result.track.artists.map(artist => artist.name);
-            const query = `${trackName} ${artistNames.join(' ')}`;
-            console.log(color.yellow.inverse('Processing track:'), query);
-            await dLByKeyword(query, folderPath);
-        }
-        console.log(color.green.inverse('Playlist tracks processed successfully.'));
+        
+        let offset = 0;
+        let totalTracks = 0;
+        let playlistTracks;
+        
+        do {
+            playlistTracks = await spotifyApi.getPlaylistTracks(playlistId, { offset: offset });
+            const tracks = playlistTracks.body.items;
+            
+            for (const result of tracks) {
+                const trackName = result.track.name;
+                const artistNames = result.track.artists.map(artist => artist.name);
+                const query = `${trackName} ${artistNames.join(' ')}`;
+                console.log(color.yellow.inverse('Processing track:'), query);
+                await dLByKeyword(query, folderPath);
+            }
+
+            totalTracks += tracks.length;
+            offset += 100; // limit for each api call is 100
+
+        } while (offset < playlistTracks.body.total);
+        
+        console.log(color.green.inverse('Playlist tracks processed successfully. Total tracks:', totalTracks));
     } catch (error) {
         console.error(color.red.inverse('Error handling Spotify playlist:', error));
         throw error;
@@ -149,7 +162,7 @@ async function dL(videoUrl) {
 
         downloadStream.on('data', (chunk) => {
             downloadedSize += chunk.length;
-            const percent = (downloadedSize / totalSize) * 100;
+            const percent = Math.min((downloadedSize / totalSize) * 100, 100); // Cap % to 100 so it can't go above 100 (it was a hilarious bug)
             if (Math.floor(percent) !== lastUpdatePercent) {
                 process.stdout.clearLine();
                 process.stdout.cursorTo(0);
@@ -163,8 +176,10 @@ async function dL(videoUrl) {
         await new Promise((resolve, reject) => {
             downloadStream.on('finish', () => {
                 process.stdout.write('\n');
-                console.log(color.green.inverse(`Downloaded: ${fileName}`));
-                resolve();
+                setTimeout(() => {
+                    console.log(color.green.inverse(`Downloaded: ${fileName}`));
+                    resolve();
+                }, 1000); // 1 second delay before saying downloaded so % update can be 100% instead of cutting off sometimes
             });
             downloadStream.on('error', (error) => {
                 console.error(color.red.inverse('Error downloading from YouTube:', error));
@@ -187,7 +202,7 @@ async function downloadFromURL(videoUrl) {
 async function handleYTPlaylist(playlistURL) {
     try {
         console.log('Fetching playlist:', playlistURL);
-        const playlist = await YouTube.getPlaylist(playlistURL);
+        const playlist = await YouTube.getPlaylist(playlistURL, { fetchAll: true });
         console.log('Playlist fetched successfully:', playlist.title);
 
         const videos = playlist.videos;
