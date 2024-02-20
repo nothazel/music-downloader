@@ -199,6 +199,7 @@ async function handleYTPlaylist(playlistURL) {
                 console.log('Downloading video:', videoUrl);
                 await dL(videoUrl);
             }
+            console.log(color.green.inverse('Playlist tracks processed successfully.'));
         } else {
             console.error(color.red.inverse('No videos found in the playlist.'));
         }
