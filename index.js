@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const YouTube = require('youtube-sr').default;
 const SpotifyWebApi = require('spotify-web-api-node');
+const ProgressBar = require('cli-progress');
 require('dotenv').config({ path: './keys.env' });
 
 let color;
@@ -17,7 +18,7 @@ let rl;
         console.error('Error loading chalk:', error);
     }
 
-    console.log(color.yellow.inverse('Enter "yt <keywords/link>" or "spotify <playlist>" to search/download from YouTube/Spotify or "exit" to quit.'));
+    console.log(color.yellow.bold.inverse('Enter "yt <keywords/link>" or "spotify <playlist>" to search/download from YouTube/Spotify or "exit" to quit.'));
 
     rl = readline.createInterface({
         input: process.stdin,
@@ -52,7 +53,6 @@ let rl;
 // Important function handles all downloads (YT/Spotify)
 async function dL(videoUrl) {
     const outputDir = './downloaded';
-
     try {
         const info = await ytdl.getInfo(videoUrl);
         const title = info.videoDetails.title;
@@ -64,39 +64,52 @@ async function dL(videoUrl) {
 
         const foundLocally = await findMusicLocally(rawName, outputDir);
         if (foundLocally) {
-            console.log(color.cyan.inverse(`The file "${fileName}" is already downloaded.`));
+            console.log(color.cyan.bold(`The file "${fileName}" is already downloaded.`));
             return;
         }
 
-        const downloadStream = ytdl(videoUrl, { quality: 'highestaudio' });
-        let downloadedSize = 0;
+        console.log(color.yellow.bold.inverse(`Downloading: ${title}`));
+
+        const downloadStream = ytdl(videoUrl, { filter: 'audioonly' });
         let totalSize = 0;
-        let lastUpdatePercent = 0;
+        let downloadedSize = 0;
+        let lastUpdate = Date.now();
+
+        const progression = new ProgressBar.SingleBar({
+            format: color.magenta('{bar}') + '|| ETA: {eta}s || {percentage}% || Speed: {speed}',
+            barCompleteChar: '\u2588',
+            barIncompleteChar: '\u2591',
+            hideCursor: true
+        });
 
         downloadStream.on('response', (res) => {
             totalSize = parseInt(res.headers['content-length'], 10);
+            progression.start(totalSize, 0);
         });
 
         downloadStream.on('data', (chunk) => {
             downloadedSize += chunk.length;
-            const percent = Math.min((downloadedSize / totalSize) * 100, 100); // Cap % to 100 so it can't go above 100 (it was a hilarious bug)
-            if (Math.floor(percent) !== lastUpdatePercent) {
-                process.stdout.clearLine();
-                process.stdout.cursorTo(0);
-                process.stdout.write(color.green.inverse(`Downloading ${fileName}: ${percent.toFixed(2)}%\r`));
-                lastUpdatePercent = Math.floor(percent);
+            const now = Date.now();
+            const elapsedTime = now - lastUpdate;
+        
+            if (elapsedTime > 0) {
+                const speed = (chunk.length / elapsedTime) * 1000;
+                const speedInMB = speed / (1024 * 1024);
+                progression.update(downloadedSize, { speed: speedInMB.toFixed(2) + ' MB/s' });
             }
+        
+            lastUpdate = now;
         });
+        
 
         downloadStream.pipe(fs.createWriteStream(filePath));
 
         await new Promise((resolve, reject) => {
             downloadStream.on('finish', () => {
-                process.stdout.write('\n');
-                setTimeout(() => {
-                    console.log(color.green.inverse(`Downloaded: ${fileName}`));
-                    resolve();
-                }, 1000); // 1 second delay before saying downloaded so % update can be 100% instead of cutting off sometimes
+                progression.update(totalSize);
+                progression.stop();
+                console.log(color.green.bold(`Downloaded: ${fileName}`));
+                resolve();
             });
             downloadStream.on('error', (error) => {
                 console.error(color.red.inverse('Error downloading from YouTube:', error));
@@ -131,7 +144,7 @@ const spotifyApi = new SpotifyWebApi({
 
 async function askForFuckingPermission() {
     try {
-        console.log(color.yellow.inverse('Requesting Spotify API client credentials grant...'));
+        console.log(color.yellow.bold('Requesting Spotify API client credentials grant...'));
         const data = await spotifyApi.clientCredentialsGrant();
         spotifyApi.setAccessToken(data.body['access_token']);
     } catch (error) {
@@ -159,7 +172,7 @@ async function handleSpotifyPlaylist(playlistUrl, folderPath) {
 
         const playlistId = isolateSpotifyID(playlistUrl);
 
-        console.log(color.yellow.inverse('Handling Spotify playlist:'), playlistId);
+        console.log(color.yellow.bold('Handling Spotify playlist:'), playlistId);
         await askForFuckingPermission();
         
         let offset = 0;
@@ -174,7 +187,7 @@ async function handleSpotifyPlaylist(playlistUrl, folderPath) {
                 const trackName = result.track.name;
                 const artistNames = result.track.artists.map(artist => artist.name);
                 const query = `${trackName} ${artistNames.join(' ')}`;
-                console.log(color.yellow.inverse('Processing track:'), query);
+                console.log(color.yellow.bold('Processing track:'), query);
                 await dLByKeyword(query, folderPath);
             }
 
@@ -183,7 +196,7 @@ async function handleSpotifyPlaylist(playlistUrl, folderPath) {
 
         } while (offset < playlistTracks.body.total);
         
-        console.log(color.green.inverse('Playlist tracks processed successfully. Total tracks:', totalTracks));
+        console.log(color.green.bold('Playlist tracks processed successfully. Total tracks:', totalTracks));
     } catch (error) {
         console.error(color.red.inverse('Error handling Spotify playlist:', error));
         throw error;
@@ -232,7 +245,7 @@ async function handleYTPlaylist(playlistURL) {
                 console.log('Downloading video:', videoUrl);
                 await dL(videoUrl);
             }
-            console.log(color.green.inverse('Playlist tracks processed successfully.'));
+            console.log(color.green.bold('Playlist tracks processed successfully.'));
         } else {
             console.error(color.red.inverse('No videos found in the playlist.'));
         }
