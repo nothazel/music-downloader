@@ -76,12 +76,12 @@ async function dL(videoUrl) {
         let lastUpdate = Date.now();
 
         const progression = new ProgressBar.SingleBar({
-            format: color.magenta('{bar}') + '|| ETA: {eta}s || {percentage}% || Speed: {speed}',
+            format: `{percentage}% [${color.magenta('{bar}')}] ETA: {eta}s Speed: {speed}`,
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
             hideCursor: true
-        });
-
+        });        
+        
         downloadStream.on('response', (res) => {
             totalSize = parseInt(res.headers['content-length'], 10);
             progression.start(totalSize, 0);
