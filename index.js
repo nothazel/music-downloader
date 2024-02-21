@@ -49,10 +49,81 @@ let rl;
     }
 })();
 
-function isValidYTPlaylist(str) {
-    return /^(http|https):\/\/[^?&]+\/watch\?v=[^&]+&list=[^&]+/.test(str);
+// Important function handles all downloads (YT/Spotify)
+async function dL(videoUrl) {
+    const outputDir = './downloaded';
+
+    try {
+        const info = await ytdl.getInfo(videoUrl);
+        const title = info.videoDetails.title;
+        const sanitizedTitle = title.replace(/[\\/:"*?<>|]/g, '');
+
+        const rawName = `${sanitizedTitle}.mp3`;
+        const fileName = path.parse(rawName).name;
+        const filePath = path.join(outputDir, rawName);
+
+        const foundLocally = await findMusicLocally(rawName, outputDir);
+        if (foundLocally) {
+            console.log(color.cyan.inverse(`The file "${fileName}" is already downloaded.`));
+            return;
+        }
+
+        const downloadStream = ytdl(videoUrl, { quality: 'highestaudio' });
+        let downloadedSize = 0;
+        let totalSize = 0;
+        let lastUpdatePercent = 0;
+
+        downloadStream.on('response', (res) => {
+            totalSize = parseInt(res.headers['content-length'], 10);
+        });
+
+        downloadStream.on('data', (chunk) => {
+            downloadedSize += chunk.length;
+            const percent = Math.min((downloadedSize / totalSize) * 100, 100); // Cap % to 100 so it can't go above 100 (it was a hilarious bug)
+            if (Math.floor(percent) !== lastUpdatePercent) {
+                process.stdout.clearLine();
+                process.stdout.cursorTo(0);
+                process.stdout.write(color.green.inverse(`Downloading ${fileName}: ${percent.toFixed(2)}%\r`));
+                lastUpdatePercent = Math.floor(percent);
+            }
+        });
+
+        downloadStream.pipe(fs.createWriteStream(filePath));
+
+        await new Promise((resolve, reject) => {
+            downloadStream.on('finish', () => {
+                process.stdout.write('\n');
+                setTimeout(() => {
+                    console.log(color.green.inverse(`Downloaded: ${fileName}`));
+                    resolve();
+                }, 1000); // 1 second delay before saying downloaded so % update can be 100% instead of cutting off sometimes
+            });
+            downloadStream.on('error', (error) => {
+                console.error(color.red.inverse('Error downloading from YouTube:', error));
+                reject(error);
+            });
+        });
+    } catch (error) {
+        console.error(color.red.inverse('Error getting video info from YouTube:', error));
+    }
 }
 
+// Validate if file exists before trying to download
+async function findMusicLocally(musicName, folderPath) {
+    return new Promise((resolve, reject) => {
+        fs.readdir(folderPath, (err, files) => {
+            if (err) {
+                console.error(err);
+                reject(err);
+            } else {
+                const musicFile = files.find(file => file.toLowerCase().includes(musicName.toLowerCase()));
+                resolve(musicFile);
+            }
+        });
+    });
+}
+
+// Spotify related code down below
 const spotifyApi = new SpotifyWebApi({
     clientId: process.env.SPOTIFY_CLIENT,
     clientSecret: process.env.SPOTIFY_SECRET,
@@ -119,6 +190,11 @@ async function handleSpotifyPlaylist(playlistUrl, folderPath) {
     }
 }
 
+// Youtube related code down below
+function isValidYTPlaylist(str) {
+    return /^(http|https):\/\/[^?&]+\/watch\?v=[^&]+&list=[^&]+/.test(str);
+}
+
 async function dLByKeyword(keywords) {
     try {
         const searchResults = await YouTube.search(keywords, { limit: 1 });
@@ -130,64 +206,6 @@ async function dLByKeyword(keywords) {
         }
     } catch (error) {
         console.error(color.red.inverse('Error searching YouTube:', error));
-    }
-}
-
-async function dL(videoUrl) {
-    const outputDir = './downloaded';
-
-    try {
-        const info = await ytdl.getInfo(videoUrl);
-        const title = info.videoDetails.title;
-        const sanitizedTitle = title.replace(/[\\/:"*?<>|]/g, '');
-
-        const rawName = `${sanitizedTitle}.mp3`;
-        const fileName = path.parse(rawName).name;
-        const filePath = path.join(outputDir, rawName);
-
-        const foundLocally = await findMusicLocally(rawName, outputDir);
-        if (foundLocally) {
-            console.log(color.cyan.inverse(`The file "${fileName}" is already downloaded.`));
-            return;
-        }
-
-        const downloadStream = ytdl(videoUrl, { quality: 'highestaudio' });
-        let downloadedSize = 0;
-        let totalSize = 0;
-        let lastUpdatePercent = 0;
-
-        downloadStream.on('response', (res) => {
-            totalSize = parseInt(res.headers['content-length'], 10);
-        });
-
-        downloadStream.on('data', (chunk) => {
-            downloadedSize += chunk.length;
-            const percent = Math.min((downloadedSize / totalSize) * 100, 100); // Cap % to 100 so it can't go above 100 (it was a hilarious bug)
-            if (Math.floor(percent) !== lastUpdatePercent) {
-                process.stdout.clearLine();
-                process.stdout.cursorTo(0);
-                process.stdout.write(color.green.inverse(`Downloading ${fileName}: ${percent.toFixed(2)}%\r`));
-                lastUpdatePercent = Math.floor(percent);
-            }
-        });
-
-        downloadStream.pipe(fs.createWriteStream(filePath));
-
-        await new Promise((resolve, reject) => {
-            downloadStream.on('finish', () => {
-                process.stdout.write('\n');
-                setTimeout(() => {
-                    console.log(color.green.inverse(`Downloaded: ${fileName}`));
-                    resolve();
-                }, 1000); // 1 second delay before saying downloaded so % update can be 100% instead of cutting off sometimes
-            });
-            downloadStream.on('error', (error) => {
-                console.error(color.red.inverse('Error downloading from YouTube:', error));
-                reject(error);
-            });
-        });
-    } catch (error) {
-        console.error(color.red.inverse('Error getting video info from YouTube:', error));
     }
 }
 
@@ -223,22 +241,7 @@ async function handleYTPlaylist(playlistURL) {
     }
 }
 
-async function findMusicLocally(musicName, folderPath) {
-    return new Promise((resolve, reject) => {
-        fs.readdir(folderPath, (err, files) => {
-            if (err) {
-                console.error(err);
-                reject(err);
-            } else {
-                const musicFile = files.find(file => file.toLowerCase().includes(musicName.toLowerCase()));
-                resolve(musicFile);
-            }
-        });
-    });
-}
-
-// Keep Command Handling under here so it doesnt get messed.
-
+// Keep Command Handling under here so it doesnt get mixed with other functions.
 
 async function handleYTCommand(args) {
     const str = args.join(' ');
